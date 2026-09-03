@@ -111,7 +111,9 @@ function QueryProblem({ message, onRetry, testId }: { message: string; onRetry: 
   );
 }
 
-function AccountRow({ account, onBan }: { account: AdminAccount; onBan: (account: AdminAccount) => void }) {
+function AccountRow({ account, currentUsername, onBan }: { account: AdminAccount; currentUsername: string; onBan: (account: AdminAccount) => void }) {
+  const isSelf = account.username.toLowerCase() === currentUsername.toLowerCase();
+  const protectedReason = isSelf ? 'You cannot ban yourself' : account.isAdmin ? 'Admins cannot ban admins' : null;
   return (
     <div data-testid={`row-admin-account-${account.username}`} className="flex items-center gap-3 border-b border-[hsl(var(--border))] px-4 py-3.5 last:border-b-0">
       <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[10px] font-bold ${account.isBanned ? 'bg-[hsl(var(--destructive)/.1)] text-[hsl(var(--destructive))]' : 'bg-[hsl(var(--primary)/.11)] text-[hsl(var(--primary))]'}`}>
@@ -130,7 +132,10 @@ function AccountRow({ account, onBan }: { account: AdminAccount; onBan: (account
           <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-1 text-[8px] font-bold uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">member</span>
         )}
       </div>
-      {!account.isBanned && (
+      {!account.isBanned && protectedReason && (
+        <span data-testid={`status-admin-account-protected-${account.username}`} className="max-w-[92px] text-right text-[8px] leading-tight text-[hsl(var(--muted-foreground))]">{protectedReason}</span>
+      )}
+      {!account.isBanned && !protectedReason && (
         <button data-testid={`button-ban-account-${account.username}`} type="button" onClick={() => onBan(account)} className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] transition hover:bg-[hsl(var(--destructive)/.09)] hover:text-[hsl(var(--destructive))]" aria-label={`Ban ${account.username}`}>
           <Ban className="h-3.5 w-3.5" />
         </button>
@@ -349,7 +354,7 @@ function BanDialog({ account, pending, error, onCancel, onConfirm }: { account: 
   );
 }
 
-export default function AdminPage() {
+export default function AdminPage({ username }: { username: string }) {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const accountsQuery = useGetAdminAccounts({ query: { queryKey: getGetAdminAccountsQueryKey(), retry: false } });
@@ -480,7 +485,7 @@ export default function AdminPage() {
               {accountsQuery.isError && <div className="p-4"><QueryProblem message="Account status is unavailable." onRetry={() => accountsQuery.refetch()} testId="admin-accounts-error" /></div>}
               {!accountsQuery.isLoading && !accountsQuery.isError && accounts.length === 0 && <div data-testid="empty-admin-accounts" className="p-7 text-center"><UserRound className="mx-auto h-5 w-5 text-[hsl(var(--muted-foreground)/.55)]" /><p className="mt-3 text-[11px] font-semibold">No accounts to review</p><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">New local accounts will appear here.</p></div>}
               {!accountsQuery.isLoading && !accountsQuery.isError && accounts.length > 0 && filteredAccounts.length === 0 && <div data-testid="empty-admin-account-search" className="p-7 text-center text-[11px] text-[hsl(var(--muted-foreground))]">No account matches “{accountSearch}”.</div>}
-              {!accountsQuery.isLoading && !accountsQuery.isError && filteredAccounts.map((account) => <AccountRow key={account.username} account={account} onBan={(target) => { setBanError(''); setBanTarget(target); }} />)}
+              {!accountsQuery.isLoading && !accountsQuery.isError && filteredAccounts.map((account) => <AccountRow key={account.username} account={account} currentUsername={username} onBan={(target) => { setBanError(''); setBanTarget(target); }} />)}
             </section>
 
             <section className="rounded-[22px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 shadow-[var(--shadow-sm)]">

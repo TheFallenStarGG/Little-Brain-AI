@@ -421,6 +421,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccount"
+        "403":
+          description: Self-ban or administrator-ban rejected
         "404":
           description: Account not found
   /admin/admins:

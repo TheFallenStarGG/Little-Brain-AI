@@ -13,6 +13,7 @@ import {
 } from "@workspace/api-zod";
 import {
   banAccount,
+  AccountBanError,
   getSessionAccount,
   listAccounts,
   setAccountAdmin,
@@ -118,14 +119,19 @@ router.get("/admin/chats/:chatId", async (req, res, next) => {
 
 router.post("/admin/accounts/:username/ban", async (req, res, next) => {
   try {
-    if (!(await requireAdmin(req, res))) return;
-    const account = await banAccount(req.params.username);
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+    const account = await banAccount(req.params.username, admin.username);
     if (!account) {
       res.status(404).json({ error: "That account could not be found." });
       return;
     }
     res.json(BanAdminAccountResponse.parse(toAdminAccount(account)));
   } catch (error) {
+    if (error instanceof AccountBanError) {
+      res.status(403).json({ error: error.message });
+      return;
+    }
     next(error);
   }
 });

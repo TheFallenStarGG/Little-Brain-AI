@@ -50,6 +50,17 @@ export type AdminAccount = Pick<
   "username" | "createdAt" | "isAdmin" | "isBanned"
 >;
 
+export class AccountBanError extends Error {
+  constructor(public readonly reason: "self" | "admin") {
+    super(
+      reason === "self"
+        ? "You cannot ban your own account."
+        : "Administrator accounts cannot be banned.",
+    );
+    this.name = "AccountBanError";
+  }
+}
+
 export type StoredRoomParticipant = {
   username: string;
   isBrain: boolean;
@@ -307,9 +318,15 @@ export async function setAccountAdmin(username: string, isAdmin = true) {
   return updated;
 }
 
-export async function banAccount(username: string) {
+export async function banAccount(username: string, actorUsername: string) {
   const account = await readAccount(username);
   if (!account) return null;
+  if (account.username === normalizeUsername(actorUsername)) {
+    throw new AccountBanError("self");
+  }
+  if (account.isAdmin) {
+    throw new AccountBanError("admin");
+  }
   if (!account.isBanned) {
     await writeAccount(
       { ...account, isBanned: true },
