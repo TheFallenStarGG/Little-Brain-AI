@@ -19,8 +19,8 @@ inference layer.
 - The snapshot repository is deliberately not linked from the public UI and
   must remain private.
 
-The GitHub backup repository is created and selected by the application. The
-frontend does not provide a repository picker or GitHub connection button.
+The application uses the fixed private repository above. The frontend does not
+provide a repository picker or GitHub connection button.
 
 ## Technology stack
 
@@ -32,8 +32,6 @@ frontend does not provide a repository picker or GitHub connection button.
 - Wouter for frontend routing
 - TanStack React Query for API state
 - Express 5 API server
-- PostgreSQL
-- Drizzle ORM and Drizzle Kit
 - Zod contracts generated from OpenAPI
 - Orval-generated React Query hooks
 - esbuild for the API production bundle
@@ -54,6 +52,7 @@ frontend does not provide a repository picker or GitHub connection button.
 │   │   │   └── routes/
 │   │   │       ├── auth.ts
 │   │   │       ├── brain.ts
+│   │   │       ├── chats.ts
 │   │   │       ├── health.ts
 │   │   │       └── index.ts
 │   │   ├── build.mjs
@@ -73,28 +72,25 @@ frontend does not provide a repository picker or GitHub connection button.
 │   ├── api-client-react/       # Generated React Query client
 │   ├── api-spec/               # OpenAPI source and Orval config
 │   ├── api-zod/                # Generated server/client Zod contracts
-│   └── db/                     # Drizzle database package and schema
 ├── scripts/                    # Workspace utility scripts
 ├── package.json                # Root scripts and tooling
 ├── pnpm-workspace.yaml         # Workspace packages, catalog, security rules
 ├── pnpm-lock.yaml
 ├── tsconfig.json               # TypeScript project references
-├── .replit                     # Optional local workspace settings
-└── replit.md                   # Project architecture notes
+└── render.yaml                 # Render web-service configuration
 ```
 
 ## Prerequisites
 
 1. Node.js 20+
 2. pnpm 10+
-3. A PostgreSQL database for the live shared model cache
-4. A GitHub fine-grained token with Contents read/write access to the fixed
+3. A GitHub fine-grained token with Contents read/write access to the fixed
    private snapshot repository
-5. A strong `SESSION_SECRET` for signed account sessions
+4. A strong `SESSION_SECRET` for signed account sessions
 
-The API server intentionally fails if `DATABASE_URL`, `GITHUB_TOKEN`, or
-`SESSION_SECRET` is missing in production. Do not put database credentials,
-GitHub tokens, or other secrets in this README or in source code.
+The API server intentionally fails when `GITHUB_TOKEN` or `SESSION_SECRET` is
+missing in production. Do not put GitHub tokens or other secrets in this README
+or in source code.
 
 ## Install dependencies
 
@@ -140,70 +136,35 @@ curl http://localhost:8080/api/healthz
 curl http://localhost:8080/api/brain/overview
 ```
 
-## Database setup and schema
+## Persistence
 
-The application uses the provisioned development PostgreSQL database. The
-database package is `@workspace/db`.
+The application has no database dependency. GitHub is the single persistence
+layer, using the GitHub Contents API and the `GITHUB_TOKEN` deployment secret.
+This works on Render's stateless web service and keeps data available across
+deploys and restarts.
 
-Push the current Drizzle schema to the development database:
+The private repository uses these paths:
 
-```bash
-pnpm --filter @workspace/db run push
+```text
+accounts/<normalized-username>.json
+snapshots/latest.json
+snapshots/bigram-model-<timestamp>.json
+snapshots/<normalized-username>/chat-history.json
+chats/<chat-id>.json
 ```
 
-This is a schema setup operation. Do not add startup-time DDL or custom
-migration scripts. Run it with the `DATABASE_URL` for the Render PostgreSQL
-database before the first production launch.
+- Account files contain salted password hashes, account flags, and timestamps.
+- `snapshots/latest.json` is the live shared model state. Every new model
+  message loads it before learning and writes the updated state afterward.
+- Timestamped model files are inspectable backups created approximately every
+  five minutes while the API is running or by clicking **Save now**.
+- Personal Little Brain history is separate from the shared model snapshots.
+- Chat rooms contain participants, optional group titles, timestamps, and room
+  messages. Every room read and write checks participant authorization.
 
-The schema is defined in `lib/db/src/schema/brain.ts` and exported through
-`lib/db/src/schema/index.ts`.
-
-### Tables
-
-#### `brain_state`
-
-There is one application-wide row with `id = 1`.
-
-- `vocabulary`: JSON object mapping each normalized token to its count
-- `transitions`: JSON object mapping a token to possible next-token counts
-- `message_count`: number of user messages learned
-- `learning_started_at`: first model initialization timestamp
-- `last_snapshot_at`: timestamp of the latest local/remote snapshot
-
-#### `chat_messages` (legacy)
-
-This table is retained for compatibility with the original schema but is no
-longer used for user-facing conversation history. New account conversations
-are stored in the private GitHub repository.
-
-#### `model_snapshots`
-
-Stores snapshot history and upload state:
-
-- `id`
-- `filename`
-- `created_at`
-- `vocabulary`
-- `bigrams`
-- `messages`
-- `status`: `local`, `github`, or `failed`
-- `error`
-
-#### `github_settings`
-
-There is one application-wide row with `id = 1`.
-
-- `owner`
-- `repository`
-- `branch`
-- `configured`
-- `updated_at`
-
-The current permanent values are the `TheFallenStarGG` owner,
-`Bigram-Learning-AI-Snapshots` repository, and `main` branch. If the backup
-repository ever changes, update the backend defaults and migrate the existing
-settings row deliberately; do not expose repository configuration in the
-public UI.
+If the live state file does not exist, the API restores the newest timestamped
+model snapshot. Malformed remote model data or GitHub read failures are reported
+as errors rather than silently replacing the model with stale local data.
 
 ## Root commands
 
@@ -321,8 +282,7 @@ accounts/<normalized-username>.json
 ```
 
 Only a salted password hash is stored. Successful signup and login set an
-HTTP-only signed session cookie. The session cookie contains no password and
-does not require an account row in PostgreSQL.
+HTTP-only signed session cookie. The session cookie contains no password.
 
 Administrator status is stored on the private account record and checked by
 the backend for every admin request. The `/admin` workspace is limited to
@@ -373,6 +333,24 @@ GET /api/brain/messages
 Returns the signed-in account's messages in chronological order. The request
 must include the account session cookie.
 
+### Private chats
+
+The chat selector supports private two-person rooms and multi-participant group
+rooms:
+
+```http
+GET /api/chats
+POST /api/chats
+GET /api/chats/:chatId
+PATCH /api/chats/:chatId
+POST /api/chats/:chatId/messages
+```
+
+Private rooms contain exactly two users. Group owners can rename their group
+for all participants, and group creators can optionally include Little Brain.
+Little Brain is never added to private two-person rooms. Participant names are
+shown with their usernames, and non-participants cannot read or write a room.
+
 ### Teach and respond
 
 ```http
@@ -403,12 +381,13 @@ GET /api/brain/snapshots
 POST /api/brain/snapshots
 ```
 
-`POST` creates a complete JSON snapshot locally and attempts to write the same
-content to GitHub. The returned snapshot status is:
+`POST` creates a complete JSON snapshot and attempts to write it to GitHub. The
+returned snapshot status is:
 
 - `github` when the remote write succeeds
 - `failed` when local creation succeeds but the GitHub write fails
-- `local` only when GitHub backup is not configured
+- `local` is retained only for compatibility with older clients; production
+  persistence requires GitHub
 
 ### Permanent GitHub settings
 
@@ -481,17 +460,14 @@ Snapshot filenames are timestamped in this form:
 bigram-model-YYYY-MM-DDTHH-MM-SS-mmmZ.json
 ```
 
-Local files are written under:
-
-```text
-artifacts/api-server/data/model-snapshots/
-```
-
-This directory is runtime data and should not be committed.
+The current production model and backups are written directly to the private
+GitHub repository. The ignored `data/model-snapshots` paths are retained only
+for compatibility with older local deployments and are not the source of
+truth.
 
 ### Snapshot JSON shape
 
-Each snapshot includes:
+Each model snapshot includes:
 
 - `format`
 - `createdAt`
@@ -499,9 +475,6 @@ Each snapshot includes:
 - `model.transitions`
 - `model.messageCount`
 - `model.learningStartedAt`
-- `messages` (empty in current model snapshots; account chat is stored
-  separately)
-- backup metadata under `github`
 
 The remote copy is written to:
 
@@ -533,18 +506,17 @@ Never hard-code the token. Configure it as a secret in Render.
 
 Before every `POST /api/brain/chat`:
 
-1. Read the `snapshots` directory from the private repository.
-2. Keep timestamped JSON model files.
-3. Select the lexicographically newest filename.
-4. Read and base64-decode its GitHub Contents API response.
-5. Validate the snapshot shape and dates.
-6. Replace the local shared `brain_state` model. Account chat files are not
-   mixed into the shared model snapshot.
-7. Learn the new message and generate a response from that refreshed state.
+1. Read `snapshots/latest.json` from the private repository.
+2. If it is absent, select the lexicographically newest timestamped model file.
+3. Read and base64-decode the GitHub Contents API response.
+4. Validate the snapshot shape and dates.
+5. Replace the in-memory shared model with that state.
+6. Learn the new message and generate a response from the refreshed state.
+7. Write the updated state back to `snapshots/latest.json`.
 
-If the repository has no snapshots yet, the local state is used. If a remote
-snapshot exists but cannot be read or parsed, the chat request fails rather
-than silently using potentially stale memory.
+If the repository has no snapshots yet, a new empty model is initialized. If a
+remote snapshot exists but cannot be read or parsed, the chat request fails
+rather than silently using potentially stale memory.
 
 ## Frontend behavior and routes
 
@@ -579,17 +551,15 @@ link in the Sources page or backup panel.
 
 For a backend-backed feature:
 
-1. Inspect the existing route and database conventions.
+1. Inspect the existing route and GitHub persistence conventions.
 2. Define or update the OpenAPI contract first.
 3. Run API code generation.
-4. Update the Drizzle schema only when persistence is required.
-5. Push the development schema with the DB command if the schema changed.
-6. Implement the route using generated Zod validation.
-7. Use generated React Query hooks in the frontend.
-8. Handle loading, error, empty, and success states.
-9. Run `pnpm run typecheck`.
-10. Restart the affected service or redeploy.
-11. Verify the proxied API and browser preview.
+4. Implement the route using generated Zod validation.
+5. Use generated React Query hooks in the frontend.
+6. Handle loading, error, empty, and success states.
+7. Run `pnpm run typecheck`.
+8. Restart the affected service or redeploy.
+9. Verify the same-origin API and browser preview.
 
 For server code, use the singleton logger from
 `artifacts/api-server/src/lib/logger.ts`; do not add `console.log()` calls to
@@ -613,19 +583,11 @@ without a proxy or platform-specific routing.
 
 In Render, set these environment variables:
 
-- `DATABASE_URL` — Render PostgreSQL connection string for the shared model
-  cache
 - `GITHUB_TOKEN` — fine-grained GitHub token with Contents read/write access
   to `TheFallenStarGG/Bigram-Learning-AI-Snapshots`
 - `SESSION_SECRET` — long random secret used to sign account cookies
 - `NODE_ENV=production`
 - `SERVE_WEB=true`
-
-Before the first launch, apply the Drizzle schema against the Render database:
-
-```bash
-pnpm --filter @workspace/db run push
-```
 
 The production health check is:
 
@@ -633,7 +595,7 @@ The production health check is:
 GET /api/healthz
 ```
 
-Never put credentials or the database connection string in source control.
+Never put credentials or tokens in source control.
 
 ## Troubleshooting
 
@@ -643,16 +605,6 @@ Dependencies are not installed. Run:
 
 ```bash
 pnpm install
-```
-
-Then restart the local process or redeploy on Render.
-
-### API returns a database relation/table error
-
-Push the development schema:
-
-```bash
-pnpm --filter @workspace/db run push
 ```
 
 Then restart the local process or redeploy on Render.
@@ -676,8 +628,8 @@ Check, without exposing credentials:
 3. The configured branch is `main`.
 4. The API log contains the GitHub response reason.
 
-The local JSON snapshot and failed status are retained so a remote failure is
-visible instead of being reported as a successful backup.
+A failed status is returned so a remote write failure is visible instead of
+being reported as a successful backup.
 
 ### Blank or incorrect page
 
@@ -692,9 +644,8 @@ Restart the local process or redeploy on Render and check:
 
 - Keep the existing pnpm workspace structure; do not migrate it to another
   framework or package layout without an explicit product decision.
-- Do not replace the PostgreSQL-backed shared model cache without an explicit
-  architecture decision. Account records and account chats belong in GitHub,
-  not PostgreSQL.
+- Keep GitHub as the sole persistence layer. Do not add a database dependency
+  or local-disk source of truth for deployed data.
 - Do not expose or commit secrets.
 - Do not put GitHub tokens in source code or chat. Use `GITHUB_TOKEN` through
   Render's secret manager.

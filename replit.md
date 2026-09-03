@@ -9,17 +9,15 @@ Little Brain AI is a transparent, from-scratch conversational model that learns 
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string for the shared model cache
-- Production account persistence also requires `SESSION_SECRET` and
-  `GITHUB_TOKEN` for the fixed private snapshots repository
+- Production requires `SESSION_SECRET` and `GITHUB_TOKEN` for the fixed private
+  snapshots repository
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
+- pnpm workspaces, Node.js 20+, TypeScript 5.9
 - API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
+- Persistence: GitHub Contents API
+- Validation: Zod
 - API codegen: Orval (from OpenAPI spec)
 - Build: esbuild (CJS bundle)
 
@@ -32,20 +30,18 @@ Little Brain AI is a transparent, from-scratch conversational model that learns 
 - `artifacts/api-server/src/routes/admin.ts` — administrator-only account moderation and AI conversation review routes
 - `artifacts/bigram-ai/src/pages/admin.tsx` — responsive administrator control room
 - `artifacts/api-server/src/routes/brain.ts` — model, chat, snapshot, and GitHub settings routes
-- `lib/db/src/schema/brain.ts` — persistent model state, messages, snapshots, and private backup state
 - `lib/api-spec/openapi.yaml` — source of truth for the generated API client and Zod contracts
 
 ## Architecture decisions
 
 - The model is intentionally a word-level bigram model: it learns only token frequencies and adjacent-token transition counts, with no pretrained weights or external AI calls.
-- PostgreSQL stores the live shared model cache so learning survives server restarts; model snapshots also write complete JSON files locally and to the private `Bigram-Learning-AI-Snapshots` repository.
-- Account records and user-facing chats are stored only in the private GitHub repository. Account files contain salted password hashes, and each user chat lives under `snapshots/<account-name>/`.
-- A five-minute server-side timer creates a snapshot while the API process is active. Before every chat, the API loads the latest private GitHub model snapshot so the shared vocabulary and transitions stay current, then writes the signed-in user's chat separately.
+- The private `Bigram-Learning-AI-Snapshots` repository is the single persistence layer. It stores the live model state, timestamped model snapshots, account records, personal histories, and shared chat rooms.
+- Before every new model message, the API loads the latest live GitHub model state, then writes the updated state back to GitHub. A five-minute server-side timer and the manual Save now action create timestamped backups.
 - Local username/password accounts are independent of hosted identity providers
   and use the fixed private GitHub repository directly.
 - Administrator access is stored on account records and enforced on the backend. Admins can review only direct AI chats and group rooms that include Little Brain; user-only rooms are never returned.
 - Banning an account invalidates its server-checked sessions, blocks future login, deletes its direct AI history, and removes its messages from shared rooms. The repository-owner account is the initial administrator.
-- The frontend uses generated API hooks so the chat, metrics, snapshot history, and backup status all consume the same contract.
+- Group rooms support multiple participants, optional Little Brain participation, shared owner-controlled names, and participant-only access. The frontend uses generated API hooks so chat, metrics, snapshot history, and backup status consume the same contract.
 
 ## Product
 

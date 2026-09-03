@@ -7,6 +7,10 @@ export const SNAPSHOT_REPOSITORY = {
   branch: "main",
 } as const;
 
+export function isGithubConfigured() {
+  return Boolean(process.env.GITHUB_TOKEN);
+}
+
 type GithubRequestInit = {
   method?: string;
   headers?: Record<string, string>;

@@ -10,8 +10,6 @@ services:
         value: production
       - key: SERVE_WEB
         value: "true"
-      - key: DATABASE_URL
-        sync: false
       - key: GITHUB_TOKEN
         sync: false
       - key: SESSION_SECRET

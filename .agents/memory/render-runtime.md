@@ -12,5 +12,5 @@ Contents API with `GITHUB_TOKEN`; there is no platform connector fallback.
 cookies working without a host-specific proxy.
 
 **How to apply:** Keep the Render build producing both artifacts, use
-`/api/healthz` as the health check, and configure `DATABASE_URL`,
-`GITHUB_TOKEN`, and `SESSION_SECRET` as deployment secrets.
+`/api/healthz` as the health check, and configure `GITHUB_TOKEN` and
+`SESSION_SECRET` as deployment secrets.
