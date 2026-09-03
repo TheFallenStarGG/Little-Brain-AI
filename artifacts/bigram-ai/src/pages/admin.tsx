@@ -1,12 +1,15 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   ArrowLeft,
   Ban,
   BrainCircuit,
+  BookOpen,
   Check,
   ChevronRight,
+  CircleUserRound,
+  Database,
   FileSearch,
   KeyRound,
   LoaderCircle,
@@ -15,6 +18,8 @@ import {
   Search,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
+  UsersRound,
   UserRound,
   X,
 } from 'lucide-react';
@@ -23,14 +28,19 @@ import {
   getGetAdminAccountsQueryKey,
   getGetAdminChatQueryKey,
   getGetAdminChatsQueryKey,
+  getGetAdminWordsQueryKey,
   useBanAdminAccount,
+  useDeleteAdminWord,
   useGetAdminAccounts,
   useGetAdminChat,
   useGetAdminChats,
+  useGetAdminWords,
   useGrantAdmin,
   type AdminAccount,
   type AdminChatDetail,
   type AdminChatSummary,
+  type AdminLearnedWord,
+  type AdminWordDeletion,
   type ChatParticipant,
 } from '@workspace/api-client-react';
 
@@ -152,6 +162,112 @@ function AdminChatRow({ chat, selected, onSelect }: { chat: AdminChatSummary; se
   );
 }
 
+function VocabularyWordRow({ word, selected, onSelect, onDelete }: { word: AdminLearnedWord; selected: boolean; onSelect: () => void; onDelete: () => void }) {
+  return (
+    <div data-testid={`row-admin-word-${word.word}`} className={`flex items-center gap-2 border-b border-[hsl(var(--border))] p-2.5 last:border-b-0 ${selected ? 'bg-[hsl(var(--primary)/.07)]' : ''}`}>
+      <button data-testid={`button-select-admin-word-${word.word}`} type="button" onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-[hsl(var(--muted)/.55)]">
+        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-[hsl(var(--primary))] ${selected ? 'border-[hsl(var(--primary)/.3)] bg-[hsl(var(--primary)/.12)]' : 'border-[hsl(var(--border))] bg-[hsl(var(--background)/.6)]'}`}>
+          <BookOpen className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div data-testid={`text-admin-word-${word.word}`} className="truncate text-[12px] font-bold">{word.word}</div>
+          <div data-testid={`text-admin-word-teacher-count-${word.word}`} className="mt-0.5 flex items-center gap-1 text-[10px] text-[hsl(var(--muted-foreground))]"><UsersRound className="h-3 w-3" />{word.taughtBy?.length ?? 0} teaching account{word.taughtBy?.length === 1 ? '' : 's'}</div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div data-testid={`text-admin-word-count-${word.word}`} className="mono text-sm font-bold text-[hsl(var(--foreground))]">{word.count}</div>
+          <div className="mono text-[8px] uppercase tracking-[.09em] text-[hsl(var(--muted-foreground))]">learned</div>
+        </div>
+        <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground)/.65)] transition-transform ${selected ? 'translate-x-0.5 text-[hsl(var(--primary))]' : ''}`} />
+      </button>
+      <button data-testid={`button-delete-admin-word-${word.word}`} type="button" onClick={onDelete} className="shrink-0 rounded-lg p-2 text-[hsl(var(--muted-foreground))] transition hover:bg-[hsl(var(--destructive)/.09)] hover:text-[hsl(var(--destructive))]" aria-label={`Delete ${word.word} from model memory`}>
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function VocabularyDetail({ word, onDelete }: { word: AdminLearnedWord | null; onDelete: () => void }) {
+  if (!word) {
+    return (
+      <section data-testid="admin-word-detail-empty" className="flex min-h-[360px] flex-1 items-center justify-center rounded-[22px] border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card)/.48)] p-8 text-center">
+        <div className="max-w-xs">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-[hsl(var(--accent)/.25)] bg-[hsl(var(--accent)/.1)] text-[hsl(29_58%_40%)]"><FileSearch className="h-6 w-6" /></div>
+          <h2 className="display mt-5 text-lg font-semibold tracking-[-.04em]">Select a learned word</h2>
+          <p className="mt-2 text-[11px] leading-relaxed text-[hsl(var(--muted-foreground))]">Inspect the accounts that contributed it before making a correction.</p>
+        </div>
+      </section>
+    );
+  }
+
+  const teachers = word.taughtBy ?? [];
+  return (
+    <section data-testid={`panel-admin-word-detail-${word.word}`} className="min-h-[360px] overflow-hidden rounded-[22px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-[var(--shadow-sm)]">
+      <header className="border-b border-[hsl(var(--border))] px-5 py-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[hsl(var(--primary)/.22)] bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]"><BookOpen className="h-5 w-5" /></div>
+          <div className="min-w-0 flex-1">
+            <div className="mono text-[9px] uppercase tracking-[.14em] text-[hsl(var(--primary))]">memory record</div>
+            <h2 data-testid={`text-admin-selected-word-${word.word}`} className="display mt-1 truncate text-xl font-semibold tracking-[-.05em]">{word.word}</h2>
+          </div>
+          <button data-testid={`button-delete-admin-word-detail-${word.word}`} type="button" onClick={onDelete} className="rounded-xl border border-[hsl(var(--destructive)/.2)] px-2.5 py-2 text-[10px] font-bold text-[hsl(var(--destructive))] transition hover:bg-[hsl(var(--destructive)/.08)]" aria-label={`Delete ${word.word} from model memory`}><Trash2 className="h-3.5 w-3.5" /></button>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background)/.5)] px-3 py-2.5">
+            <div className="mono text-[8px] uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">learned count</div>
+            <div data-testid={`text-admin-selected-word-count-${word.word}`} className="display mt-1 text-lg font-semibold">{word.count}</div>
+          </div>
+          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background)/.5)] px-3 py-2.5">
+            <div className="mono text-[8px] uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">teaching accounts</div>
+            <div data-testid={`text-admin-selected-word-teacher-total-${word.word}`} className="display mt-1 text-lg font-semibold">{teachers.length}</div>
+          </div>
+        </div>
+      </header>
+      <div className="p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div><h3 className="display text-[13px] font-semibold">Who taught this?</h3><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Attribution comes from original learning events.</p></div>
+          <CircleUserRound className="h-4 w-4 text-[hsl(var(--muted-foreground)/.7)]" />
+        </div>
+        {teachers.length === 0 ? (
+          <div data-testid={`empty-admin-word-teachers-${word.word}`} className="mt-5 rounded-2xl border border-dashed border-[hsl(var(--border))] px-4 py-6 text-center">
+            <UsersRound className="mx-auto h-5 w-5 text-[hsl(var(--muted-foreground)/.55)]" />
+            <p className="mt-3 text-[11px] font-semibold">No teaching attribution available</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-[hsl(var(--muted-foreground))]">The word is in memory, but this record does not identify a teaching account.</p>
+          </div>
+        ) : (
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[hsl(var(--border))]">
+            {teachers.map((teacher) => (
+              <div data-testid={`row-admin-word-teacher-${word.word}-${teacher.username}`} key={teacher.username} className="flex items-center gap-3 border-b border-[hsl(var(--border))] px-3.5 py-3 last:border-b-0">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[hsl(var(--primary)/.1)] text-[9px] font-bold text-[hsl(var(--primary))]">{initials(teacher.username)}</div>
+                <div className="min-w-0 flex-1"><div data-testid={`text-admin-word-teacher-${word.word}-${teacher.username}`} className="truncate text-[11px] font-bold">@{teacher.username}</div><div className="text-[9px] text-[hsl(var(--muted-foreground))]">contributor</div></div>
+                <div data-testid={`text-admin-word-teacher-count-${word.word}-${teacher.username}`} className="mono text-[10px] font-bold">{teacher.count} contribution{teacher.count === 1 ? '' : 's'}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function DeleteWordDialog({ word, pending, error, onCancel, onConfirm }: { word: string; pending: boolean; error: string; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[hsl(var(--foreground)/.42)] px-3 py-3 backdrop-blur-sm sm:items-center sm:px-5">
+      <div role="dialog" aria-modal="true" aria-labelledby="delete-word-dialog-title" className="w-full max-w-md rounded-[26px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-[0_24px_70px_rgba(31,55,48,.2)]">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[hsl(var(--destructive)/.1)] text-[hsl(var(--destructive))]"><Trash2 className="h-5 w-5" /></div>
+        <div className="mono mt-5 text-[9px] uppercase tracking-[.16em] text-[hsl(var(--destructive))]">destructive memory action</div>
+        <h2 id="delete-word-dialog-title" className="display mt-2 text-xl font-semibold tracking-[-.045em]">Delete “<span data-testid="text-admin-delete-word-target">{word}</span>”?</h2>
+        <p className="mt-3 text-[12px] leading-6 text-[hsl(var(--muted-foreground))]">The word and all of its model connections will be removed from Little Brain’s memory. Original teaching conversations remain available for audit.</p>
+        <div className="mt-4 rounded-xl border border-[hsl(var(--destructive)/.18)] bg-[hsl(var(--destructive)/.05)] px-3.5 py-3 text-[10px] leading-relaxed text-[hsl(var(--destructive))]"><AlertTriangle className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" />Review the word carefully before continuing. This cannot be undone.</div>
+        {error && <div data-testid="status-admin-word-delete-error" role="alert" className="mt-3 text-[11px] leading-relaxed text-[hsl(var(--destructive))]">{error}</div>}
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button data-testid="button-cancel-admin-word-delete" type="button" onClick={onCancel} disabled={pending} className="rounded-xl px-4 py-3 text-[11px] font-bold text-[hsl(var(--muted-foreground))] transition hover:bg-[hsl(var(--muted))] disabled:opacity-50">Keep word</button>
+          <button data-testid="button-confirm-admin-word-delete" type="button" onClick={onConfirm} disabled={pending} className="flex items-center justify-center gap-2 rounded-xl bg-[hsl(var(--destructive))] px-4 py-3 text-[11px] font-bold text-[hsl(var(--destructive-foreground))] transition hover:brightness-110 disabled:opacity-55">{pending ? <><LoaderCircle className="h-3.5 w-3.5 animate-spin" /><span data-testid="status-admin-word-delete-pending">Removing memory</span></> : <><Trash2 className="h-3.5 w-3.5" />Delete word</>}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChatDetailPanel({ chatId, onClose }: { chatId: string | null; onClose: () => void }) {
   const query = useGetAdminChat(chatId || '', { query: { enabled: !!chatId, queryKey: getGetAdminChatQueryKey(chatId || ''), retry: false } });
   const detail = query.data as AdminChatDetail | undefined;
@@ -238,7 +354,12 @@ export default function AdminPage() {
   const queryClient = useQueryClient();
   const accountsQuery = useGetAdminAccounts({ query: { queryKey: getGetAdminAccountsQueryKey(), retry: false } });
   const chatsQuery = useGetAdminChats({ query: { queryKey: getGetAdminChatsQueryKey(), retry: false } });
+  const [wordSearchInput, setWordSearchInput] = useState('');
+  const [wordSearch, setWordSearch] = useState('');
+  const wordSearchParams = useMemo(() => wordSearch ? { search: wordSearch } : undefined, [wordSearch]);
+  const wordsQuery = useGetAdminWords(wordSearchParams, { query: { queryKey: getGetAdminWordsQueryKey(wordSearchParams), retry: false } });
   const banAccount = useBanAdminAccount();
+  const deleteWord = useDeleteAdminWord();
   const grantAdmin = useGrantAdmin();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [accountSearch, setAccountSearch] = useState('');
@@ -247,9 +368,19 @@ export default function AdminPage() {
   const [grantError, setGrantError] = useState('');
   const [banTarget, setBanTarget] = useState<AdminAccount | null>(null);
   const [banError, setBanError] = useState('');
+  const [selectedWord, setSelectedWord] = useState<AdminLearnedWord | null>(null);
+  const [deleteWordTarget, setDeleteWordTarget] = useState<string | null>(null);
+  const [deleteWordError, setDeleteWordError] = useState('');
+  const [deleteWordSuccess, setDeleteWordSuccess] = useState<AdminWordDeletion | null>(null);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setWordSearch(wordSearchInput.trim()), 320);
+    return () => window.clearTimeout(timeout);
+  }, [wordSearchInput]);
 
   const accounts = accountsQuery.data ?? [];
   const chats = useMemo(() => (chatsQuery.data ?? []).filter((chat) => chat.includeBrain), [chatsQuery.data]);
+  const words = wordsQuery.data ?? [];
   const filteredAccounts = useMemo(() => {
     const query = accountSearch.trim().toLowerCase();
     return query ? accounts.filter((account) => account.username.toLowerCase().includes(query)) : accounts;
@@ -287,6 +418,26 @@ export default function AdminPage() {
         setBanTarget(null);
       },
       onError: (error) => setBanError(errorMessage(error, 'The account could not be banned. Nothing was changed.')),
+    });
+  };
+
+  const requestWordDelete = (word: string) => {
+    setDeleteWordError('');
+    setDeleteWordSuccess(null);
+    setDeleteWordTarget(word);
+  };
+
+  const confirmWordDelete = () => {
+    if (!deleteWordTarget) return;
+    setDeleteWordError('');
+    deleteWord.mutate({ word: deleteWordTarget }, {
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ queryKey: getGetAdminWordsQueryKey() });
+        setSelectedWord((current) => current?.word === result.word ? null : current);
+        setDeleteWordTarget(null);
+        setDeleteWordSuccess(result);
+      },
+      onError: (error) => setDeleteWordError(errorMessage(error, 'The word could not be removed. Nothing was changed.')),
     });
   };
 
@@ -357,8 +508,45 @@ export default function AdminPage() {
             <div data-testid="admin-privacy-note" className="flex items-start gap-2.5 rounded-2xl border border-dashed border-[hsl(var(--border))] p-4 text-[10px] leading-relaxed text-[hsl(var(--muted-foreground))]"><ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[hsl(var(--primary))]" /><span><strong className="font-bold text-[hsl(var(--foreground))]">A narrow window by design.</strong> This console exposes only conversations that involve Little Brain. It is not a directory of user-only private or group chats.</span></div>
           </section>
         </div>
+
+        <section data-testid="panel-admin-vocabulary" className="reveal mt-5 overflow-hidden rounded-[22px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-[var(--shadow-sm)]" style={{ animationDelay: '.12s' }}>
+          <div className="border-b border-[hsl(var(--border))] px-5 py-5">
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[hsl(var(--accent)/.3)] bg-[hsl(var(--accent)/.11)] text-[hsl(29_58%_40%)]"><Database className="h-4 w-4" /></div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2"><h2 className="display text-[16px] font-semibold tracking-[-.03em]">Learned vocabulary</h2><span data-testid="status-admin-vocabulary-scope" className="mono rounded-full bg-[hsl(var(--accent)/.13)] px-2 py-1 text-[8px] uppercase tracking-[.09em] text-[hsl(29_58%_40%)]">model memory</span></div>
+                  <p className="mt-1 max-w-xl text-[11px] leading-relaxed text-[hsl(var(--muted-foreground))]">Search what Little Brain has absorbed, see who contributed it, and remove a word when the memory needs a deliberate correction.</p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span data-testid="text-admin-vocabulary-count" className="mono rounded-full bg-[hsl(var(--muted))] px-2.5 py-1.5 text-[9px] font-bold text-[hsl(var(--muted-foreground))]">{wordsQuery.isLoading ? '—' : `${words.length} visible`}</span>
+                {wordsQuery.isFetching && !wordsQuery.isLoading && <span data-testid="status-admin-vocabulary-refreshing" className="mono text-[9px] text-[hsl(var(--primary))]">updating</span>}
+              </div>
+            </div>
+            <div className="relative mt-5 max-w-2xl">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[hsl(var(--muted-foreground)/.7)]" />
+              <input data-testid="input-search-admin-words" value={wordSearchInput} onChange={(event) => setWordSearchInput(event.target.value)} maxLength={100} placeholder="Search learned words" aria-label="Search learned words" className="w-full rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] py-3 pl-10 pr-3 text-[11px] outline-none transition placeholder:text-[hsl(var(--muted-foreground)/.6)] focus:border-[hsl(var(--primary)/.55)] focus:ring-4 focus:ring-[hsl(var(--primary)/.1)]" />
+              <div data-testid="status-admin-word-search" className="mt-2 flex items-center gap-1.5 text-[9px] text-[hsl(var(--muted-foreground))]"><span className={`h-1.5 w-1.5 rounded-full ${wordSearch ? 'bg-[hsl(var(--primary))]' : 'bg-[hsl(var(--accent))]'}`} />{wordSearch ? `Showing matches for “${wordSearch}”` : 'Showing every learned word'}{wordSearchInput.trim() !== wordSearch ? ' · waiting to search' : ''}</div>
+            </div>
+          </div>
+          <div className="grid gap-5 p-3 sm:p-4 lg:grid-cols-[minmax(300px,.92fr)_minmax(360px,1.08fr)]">
+            <div className="min-w-0 overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background)/.28)]">
+              {wordsQuery.isLoading && <div data-testid="loading-admin-words" className="space-y-2 p-3"><div className="h-16 animate-pulse rounded-xl bg-[hsl(var(--muted))]" /><div className="h-16 animate-pulse rounded-xl bg-[hsl(var(--muted))]" /><div className="h-16 animate-pulse rounded-xl bg-[hsl(var(--muted))]" /></div>}
+              {wordsQuery.isError && <div className="p-3"><QueryProblem message="Learned vocabulary is unavailable." onRetry={() => wordsQuery.refetch()} testId="admin-words-error" /></div>}
+              {!wordsQuery.isLoading && !wordsQuery.isError && words.length === 0 && wordSearch && <div data-testid="empty-admin-word-search" className="flex min-h-[230px] items-center justify-center p-7 text-center"><div><Search className="mx-auto h-5 w-5 text-[hsl(var(--muted-foreground)/.55)]" /><p className="mt-3 text-[11px] font-semibold">No learned word matches</p><p className="mt-1 text-[10px] leading-relaxed text-[hsl(var(--muted-foreground))]">Nothing in model memory matches “<span data-testid="text-admin-word-no-results-query">{wordSearch}</span>”. Try a shorter search.</p></div></div>}
+              {!wordsQuery.isLoading && !wordsQuery.isError && words.length === 0 && !wordSearch && <div data-testid="empty-admin-vocabulary" className="flex min-h-[230px] items-center justify-center p-7 text-center"><div><BookOpen className="mx-auto h-5 w-5 text-[hsl(var(--muted-foreground)/.55)]" /><p className="mt-3 text-[11px] font-semibold">No learned words yet</p><p className="mt-1 text-[10px] leading-relaxed text-[hsl(var(--muted-foreground))]">Words taught to Little Brain will be catalogued here.</p></div></div>}
+              {!wordsQuery.isLoading && !wordsQuery.isError && words.map((word) => <VocabularyWordRow key={word.word} word={word} selected={selectedWord?.word === word.word} onSelect={() => setSelectedWord(word)} onDelete={() => requestWordDelete(word.word)} />)}
+            </div>
+            <div className="min-w-0">
+              <VocabularyDetail word={selectedWord} onDelete={() => selectedWord && requestWordDelete(selectedWord.word)} />
+            </div>
+          </div>
+          {deleteWordSuccess && <div data-testid="status-admin-word-delete-success" role="status" className="mx-3 mb-3 flex items-start gap-2 rounded-2xl border border-[hsl(var(--primary)/.2)] bg-[hsl(var(--primary)/.06)] px-4 py-3 text-[10px] leading-relaxed text-[hsl(var(--primary))] sm:mx-4 sm:mb-4"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>“<strong data-testid="text-admin-deleted-word">{deleteWordSuccess.word}</strong>” was removed from model memory. <strong data-testid="text-admin-remaining-word-count">{deleteWordSuccess.remainingWords}</strong> learned words remain.</span><button data-testid="button-dismiss-admin-word-delete-success" type="button" onClick={() => setDeleteWordSuccess(null)} className="ml-auto shrink-0 rounded-lg p-1 text-[hsl(var(--primary))] transition hover:bg-[hsl(var(--primary)/.1)]" aria-label="Dismiss deletion confirmation"><X className="h-3.5 w-3.5" /></button></div>}
+        </section>
       </main>
       {banTarget && <BanDialog account={banTarget} pending={banAccount.isPending} error={banError} onCancel={() => setBanTarget(null)} onConfirm={confirmBan} />}
+      {deleteWordTarget && <DeleteWordDialog word={deleteWordTarget} pending={deleteWord.isPending} error={deleteWordError} onCancel={() => setDeleteWordTarget(null)} onConfirm={confirmWordDelete} />}
     </div>
   );
 }

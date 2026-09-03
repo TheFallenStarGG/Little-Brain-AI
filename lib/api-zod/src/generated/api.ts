@@ -503,6 +503,52 @@ export const GetAdminAccountsResponse = zod.array(GetAdminAccountsResponseItem)
 
 
 /**
+ * @summary List words learned by the model
+ */
+export const getAdminWordsQuerySearchMax = 100;
+
+
+
+export const GetAdminWordsQueryParams = zod.object({
+  "search": zod.coerce.string().max(getAdminWordsQuerySearchMax).optional()
+})
+
+export const getAdminWordsResponseCountMin = 0;
+
+export const getAdminWordsResponseTaughtByItemCountMin = 0;
+
+
+
+export const GetAdminWordsResponseItem = zod.object({
+  "word": zod.string(),
+  "count": zod.number().min(getAdminWordsResponseCountMin),
+  "taughtBy": zod.array(zod.object({
+  "username": zod.string(),
+  "count": zod.number().min(getAdminWordsResponseTaughtByItemCountMin)
+}))
+})
+export const GetAdminWordsResponse = zod.array(GetAdminWordsResponseItem)
+
+
+/**
+ * @summary Delete a learned word and its model connections
+ */
+export const DeleteAdminWordParams = zod.object({
+  "word": zod.coerce.string()
+})
+
+export const deleteAdminWordResponseRemainingWordsMin = 0;
+
+
+
+export const DeleteAdminWordResponse = zod.object({
+  "word": zod.string(),
+  "deleted": zod.boolean(),
+  "remainingWords": zod.number().min(deleteAdminWordResponseRemainingWordsMin)
+})
+
+
+/**
  * @summary List AI-involving chats for administrators
  */
 export const GetAdminChatsResponseItem = zod.object({

@@ -1,8 +1,12 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   BanAdminAccountResponse,
+  DeleteAdminWordParams,
+  DeleteAdminWordResponse,
   GetAdminChatResponse,
   GetAdminChatsResponse,
+  GetAdminWordsQueryParams,
+  GetAdminWordsResponse,
   GrantAdminBody,
   GrantAdminResponse,
   GetAdminAccountsResponse,
@@ -16,6 +20,7 @@ import {
   type AdminAccount,
 } from "../lib/auth-service";
 import { getAdminChat, getAdminChats } from "../lib/chat-service";
+import { deleteLearnedWord, getLearnedWords } from "../lib/brain-service";
 
 const router: IRouter = Router();
 
@@ -47,6 +52,43 @@ router.get("/admin/accounts", async (req, res, next) => {
     const accounts = await listAccounts();
     res.json(GetAdminAccountsResponse.parse(accounts.map(toAdminAccount)));
   } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/admin/words", async (req, res, next) => {
+  try {
+    if (!(await requireAdmin(req, res))) return;
+    const { search } = GetAdminWordsQueryParams.parse(req.query);
+    res.json(GetAdminWordsResponse.parse(await getLearnedWords(search)));
+  } catch (error) {
+    if (error instanceof Error && error.name === "ZodError") {
+      res.status(400).json({ error: "Search must be 100 characters or fewer." });
+      return;
+    }
+    next(error);
+  }
+});
+
+router.delete("/admin/words/:word", async (req, res, next) => {
+  try {
+    if (!(await requireAdmin(req, res))) return;
+    const { word } = DeleteAdminWordParams.parse(req.params);
+    if (!/^[a-z0-9]+(?:'[a-z0-9]+)?$/i.test(word.trim())) {
+      res.status(400).json({ error: "That is not a learned word." });
+      return;
+    }
+    const deleted = await deleteLearnedWord(word);
+    if (!deleted) {
+      res.status(404).json({ error: "That word is not in the model memory." });
+      return;
+    }
+    res.json(DeleteAdminWordResponse.parse(deleted));
+  } catch (error) {
+    if (error instanceof Error && error.name === "ZodError") {
+      res.status(400).json({ error: "That is not a valid learned word." });
+      return;
+    }
     next(error);
   }
 });

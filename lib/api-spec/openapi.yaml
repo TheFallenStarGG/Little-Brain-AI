@@ -326,6 +326,49 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AdminAccount"
+  /admin/words:
+    get:
+      operationId: getAdminWords
+      tags: [admin]
+      summary: List words learned by the model
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        "200":
+          description: Learned vocabulary with teaching attribution
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminLearnedWord"
+  /admin/words/{word}:
+    delete:
+      operationId: deleteAdminWord
+      tags: [admin]
+      summary: Delete a learned word and its model connections
+      parameters:
+        - name: word
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted learned word
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminWordDeletion"
+        "400":
+          description: Invalid learned word
+        "404":
+          description: Learned word not found
   /admin/chats:
     get:
       operationId: getAdminChats
@@ -703,4 +746,37 @@ components:
           minLength: 3
           maxLength: 32
           pattern: "^[A-Za-z0-9_-]+$"
+    AdminLearnedWordTeacher:
+      type: object
+      required: [username, count]
+      properties:
+        username:
+          type: string
+        count:
+          type: number
+          minimum: 0
+    AdminLearnedWord:
+      type: object
+      required: [word, count, taughtBy]
+      properties:
+        word:
+          type: string
+        count:
+          type: number
+          minimum: 0
+        taughtBy:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminLearnedWordTeacher"
+    AdminWordDeletion:
+      type: object
+      required: [word, deleted, remainingWords]
+      properties:
+        word:
+          type: string
+        deleted:
+          type: boolean
+        remainingWords:
+          type: number
+          minimum: 0
 

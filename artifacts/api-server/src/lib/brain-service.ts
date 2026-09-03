@@ -9,6 +9,8 @@ import {
   pushSnapshotToGithub,
 } from "./github";
 import {
+  listAccounts,
+  listChatRooms,
   readAccountChat,
   writeAccountChat,
   type StoredChatMessage,
@@ -73,12 +75,27 @@ export type PublicSnapshot = {
   error: string | null;
 };
 
+export type LearnedWordTeacher = {
+  username: string;
+  count: number;
+};
+
+export type LearnedWord = {
+  word: string;
+  count: number;
+  taughtBy: LearnedWordTeacher[];
+};
+
 function tokenize(text: string) {
   return (
     text
       .toLocaleLowerCase()
       .match(/[a-z0-9]+(?:'[a-z0-9]+)?|[.,!?;:]/g) ?? []
   );
+}
+
+function isLearnedWord(token: string) {
+  return /^[a-z0-9]+(?:'[a-z0-9]+)?$/.test(token);
 }
 
 function formatTokens(tokens: string[]) {
@@ -354,6 +371,97 @@ export async function getOverview(): Promise<BrainOverview> {
     githubConfigured: connected,
     githubConnected: connected,
   };
+}
+
+function recordTeaching(
+  teaching: Map<string, Map<string, number>>,
+  username: string,
+  content: string,
+) {
+  for (const token of tokenize(content)) {
+    if (!isLearnedWord(token)) continue;
+    const wordTeaching = teaching.get(token) ?? new Map<string, number>();
+    wordTeaching.set(username, (wordTeaching.get(username) ?? 0) + 1);
+    teaching.set(token, wordTeaching);
+  }
+}
+
+async function getTeachingCounts() {
+  const teaching = new Map<string, Map<string, number>>();
+  const [accounts, rooms] = await Promise.all([listAccounts(), listChatRooms()]);
+
+  await Promise.all(
+    accounts.map(async (account) => {
+      const messages = await readAccountChat(account.username);
+      for (const message of messages) {
+        if (message.role === "user") {
+          recordTeaching(teaching, account.username, message.content);
+        }
+      }
+    }),
+  );
+
+  for (const room of rooms) {
+    if (!room.includeBrain) continue;
+    for (const message of room.messages) {
+      if (message.senderUsername !== "little-brain") {
+        recordTeaching(teaching, message.senderUsername, message.content);
+      }
+    }
+  }
+
+  return teaching;
+}
+
+export async function getLearnedWords(search?: string): Promise<LearnedWord[]> {
+  const [state, teaching] = await Promise.all([getState(), getTeachingCounts()]);
+  const normalizedSearch = search?.trim().toLocaleLowerCase() ?? "";
+
+  return Object.entries(state.vocabulary)
+    .filter(([word]) => isLearnedWord(word))
+    .filter(([word]) => !normalizedSearch || word.includes(normalizedSearch))
+    .map(([word, count]) => ({
+      word,
+      count,
+      taughtBy: Array.from(teaching.get(word)?.entries() ?? [])
+        .map(([username, teacherCount]) => ({ username, count: teacherCount }))
+        .sort(
+          (left, right) =>
+            right.count - left.count || left.username.localeCompare(right.username),
+        ),
+    }))
+    .sort((left, right) => left.word.localeCompare(right.word));
+}
+
+export type DeletedLearnedWord = {
+  word: string;
+  deleted: boolean;
+  remainingWords: number;
+};
+
+export async function deleteLearnedWord(
+  word: string,
+): Promise<DeletedLearnedWord | null> {
+  const normalizedWord = word.trim().toLocaleLowerCase();
+  if (!isLearnedWord(normalizedWord)) return null;
+
+  return withModelWriteLock(async () => {
+    const state = await getState();
+    if (!(normalizedWord in state.vocabulary)) return null;
+
+    delete state.vocabulary[normalizedWord];
+    delete state.transitions[normalizedWord];
+    for (const options of Object.values(state.transitions)) {
+      delete options[normalizedWord];
+    }
+
+    await saveLiveState(state);
+    return {
+      word: normalizedWord,
+      deleted: true,
+      remainingWords: Object.keys(state.vocabulary).filter(isLearnedWord).length,
+    };
+  });
 }
 
 export async function getMessages(username: string): Promise<PublicMessage[]> {

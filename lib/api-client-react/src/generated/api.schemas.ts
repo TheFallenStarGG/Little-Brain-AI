@@ -236,3 +236,30 @@ export interface AdminGrantAdminInput {
   username: string;
 }
 
+export interface AdminLearnedWordTeacher {
+  username: string;
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface AdminLearnedWord {
+  word: string;
+  /** @minimum 0 */
+  count: number;
+  taughtBy: AdminLearnedWordTeacher[];
+}
+
+export interface AdminWordDeletion {
+  word: string;
+  deleted: boolean;
+  /** @minimum 0 */
+  remainingWords: number;
+}
+
+export type GetAdminWordsParams = {
+/**
+ * @maxLength 100
+ */
+search?: string;
+};
+

@@ -25,6 +25,8 @@ import type {
   AdminChatDetail,
   AdminChatSummary,
   AdminGrantAdminInput,
+  AdminLearnedWord,
+  AdminWordDeletion,
   AuthSession,
   BrainOverview,
   ChatDetail,
@@ -33,6 +35,7 @@ import type {
   ChatResult,
   ChatSummary,
   CreateChatInput,
+  GetAdminWordsParams,
   GithubSettings,
   GithubSettingsInput,
   HealthStatus,
@@ -1402,6 +1405,161 @@ export function useGetAdminAccounts<TData = Awaited<ReturnType<typeof getAdminAc
 
 
 
+
+export const getGetAdminWordsUrl = (params?: GetAdminWordsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/words?${stringifiedParams}` : `/api/admin/words`
+}
+
+/**
+ * @summary List words learned by the model
+ */
+export const getAdminWords = async (params?: GetAdminWordsParams, options?: Parameters<typeof customFetch>[1]): Promise<AdminLearnedWord[]> => {
+
+  return customFetch<AdminLearnedWord[]>(getGetAdminWordsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminWordsQueryKey = (params?: GetAdminWordsParams,) => {
+    return [
+    `/api/admin/words`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAdminWordsQueryOptions = <TData = Awaited<ReturnType<typeof getAdminWords>>, TError = ErrorType<unknown>>(params?: GetAdminWordsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminWords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminWordsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminWords>>> = ({ signal }) => getAdminWords(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminWords>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminWordsQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminWords>>>
+export type GetAdminWordsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List words learned by the model
+ */
+
+export function useGetAdminWords<TData = Awaited<ReturnType<typeof getAdminWords>>, TError = ErrorType<unknown>>(
+ params?: GetAdminWordsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminWords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminWordsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeleteAdminWordUrl = (word: string,) => {
+
+
+
+
+  return `/api/admin/words/${word}`
+}
+
+/**
+ * @summary Delete a learned word and its model connections
+ */
+export const deleteAdminWord = async (word: string, options?: Parameters<typeof customFetch>[1]): Promise<AdminWordDeletion> => {
+
+  return customFetch<AdminWordDeletion>(getDeleteAdminWordUrl(word),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminWordMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminWord>>, TError,{word: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminWord>>, TError,{word: string}, TContext> => {
+
+const mutationKey = ['deleteAdminWord'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminWord>>, {word: string}> = (props) => {
+          const {word} = props ?? {};
+
+          return  deleteAdminWord(word,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminWordMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminWord>>>
+
+    export type DeleteAdminWordMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a learned word and its model connections
+ */
+export const useDeleteAdminWord = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminWord>>, TError,{word: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminWord>>,
+        TError,
+        {word: string},
+        TContext
+      > => {
+      return useMutation(getDeleteAdminWordMutationOptions(options));
+    }
 
 export const getGetAdminChatsUrl = () => {
 
