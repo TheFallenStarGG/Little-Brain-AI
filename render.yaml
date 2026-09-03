@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: little-brain-ai
+    runtime: node
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server run build && PORT=10000 BASE_PATH=/ pnpm --filter @workspace/bigram-ai run build
+    startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SERVE_WEB
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: SESSION_SECRET
+        sync: false

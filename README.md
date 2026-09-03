@@ -1,6 +1,6 @@
-# Bigram AI
+# Little Brain AI
 
-Bigram AI is a transparent, from-scratch conversational language model. Users
+Little Brain AI is a transparent, from-scratch conversational language model. Users
 teach it through a live chat; it learns token frequencies and word-to-word
 transitions, generates a response from those transitions, and exposes the
 model's state through an observability-focused web interface.
@@ -24,7 +24,7 @@ frontend does not provide a repository picker or GitHub connection button.
 
 ## Technology stack
 
-- Node.js 20 Replit module
+- Node.js 20+
 - pnpm workspaces
 - TypeScript 5.9
 - React 19 + Vite 7
@@ -37,7 +37,7 @@ frontend does not provide a repository picker or GitHub connection button.
 - Zod contracts generated from OpenAPI
 - Orval-generated React Query hooks
 - esbuild for the API production bundle
-- Replit Connectors SDK for authenticated GitHub API access
+- GitHub Contents API authenticated with `GITHUB_TOKEN`
 
 ## Repository layout
 
@@ -79,24 +79,22 @@ frontend does not provide a repository picker or GitHub connection button.
 ├── pnpm-workspace.yaml         # Workspace packages, catalog, security rules
 ├── pnpm-lock.yaml
 ├── tsconfig.json               # TypeScript project references
-├── .replit                     # Replit deployment/workspace settings
-└── replit.md                   # Short Replit-specific project notes
+├── .replit                     # Optional local workspace settings
+└── replit.md                   # Project architecture notes
 ```
 
 ## Prerequisites
 
-The Replit workspace normally supplies these:
+1. Node.js 20+
+2. pnpm 10+
+3. A PostgreSQL database for the live shared model cache
+4. A GitHub fine-grained token with Contents read/write access to the fixed
+   private snapshot repository
+5. A strong `SESSION_SECRET` for signed account sessions
 
-1. Node.js 20
-2. pnpm
-3. A provisioned PostgreSQL database for the live shared model cache
-4. A GitHub integration authorized for this Repl/environment, or a
-   `GITHUB_TOKEN` with access to the fixed private repository when running
-   outside Replit
-
-The API server will fail intentionally if `DATABASE_URL` is missing. Do not
-put database credentials, GitHub tokens, or other secrets in this README or in
-source code. GitHub authentication is handled by the Replit integration.
+The API server intentionally fails if `DATABASE_URL`, `GITHUB_TOKEN`, or
+`SESSION_SECRET` is missing in production. Do not put database credentials,
+GitHub tokens, or other secrets in this README or in source code.
 
 ## Install dependencies
 
@@ -109,95 +107,10 @@ pnpm install --frozen-lockfile
 The workspace enforces a 1-day minimum package release age as a supply-chain
 protection. Do not disable `minimumReleaseAge` in `pnpm-workspace.yaml`.
 
-## Replit preview setup (for an agent)
+## Local development
 
-When setting up this imported project in Replit, preserve the artifact-owned
-workflows already defined by the project. Do **not** create a new workflow,
-call `configureWorkflow`, or replace these with a workflow named `Start
-application`, `Project`, or `Bigram AI Webview`.
-
-The files under `artifacts/*/.replit-artifact/artifact.toml` are the source of
-the imported services. If the managed workflows are not visible immediately
-after import, re-check the registered artifacts/workflows after metadata
-registration finishes. Do not work around that delay by creating a manual Vite
-workflow, using port `5173`, or starting the frontend outside its artifact
-workflow; the managed service must receive its configured port `26237` and
-root `/` routing.
-
-1. **Immediately connect GitHub before starting the app.** Check the Replit
-   Integrations view for an added GitHub connection. If it is not already
-   attached, request/connect the GitHub connector through Replit's integration
-   flow right away. Do not ask for or paste a GitHub token, password, or API
-   key into chat. The connector is required for reading the latest
-   `snapshots/` memory and writing future backups, so do not consider setup
-   complete while it is unavailable.
-2. Install the locked dependencies with `pnpm install --frozen-lockfile`.
-3. Use the existing Replit-managed workflow named
-   `artifacts/bigram-ai: web` for the root web preview. Restart it from the
-   Replit workflow controls or with the workflow restart tool; do not run the
-   Vite command manually on a different port.
-4. Start or restart the existing `artifacts/api-server: API Server` workflow as
-   well. The frontend calls the API through `/api`, so starting only the
-   frontend produces a page with failed data requests.
-5. If `/api/healthz` returns `200` but model endpoints return a database error
-   saying that `brain_state`, `chat_messages`, or `model_snapshots` is missing,
-   use the development-only schema command below:
-
-   ```bash
-   pnpm --filter @workspace/db run push
-   ```
-
-   This uses Replit's provisioned development database. Never set
-   `DATABASE_URL` manually, add startup-time DDL, or run this against
-   production.
-6. Verify the root preview at `/` and the API health endpoint at
-   `/api/healthz`. Start `artifacts/mockup-sandbox: Component Preview Server`
-   only when the Canvas component preview is needed.
-
-Replit may require the account owner to approve the GitHub OAuth connection.
-That approval is the only expected user interaction; the agent must request it
-immediately rather than proceeding with a disconnected or simulated backup.
-
-The artifact workflows inject the correct `PORT` and `BASE_PATH` values and
-provide the path-based preview routing. The existing artifact metadata is the
-source of truth; do not edit the `artifact.toml` files or create replacement
-workflow configuration.
-
-## Replit workflows
-
-These are the managed workflows currently used by the project:
-
-| Workflow | Command | Purpose |
-| --- | --- | --- |
-| `artifacts/api-server: API Server` | `pnpm --filter @workspace/api-server run dev` | Express API |
-| `artifacts/bigram-ai: web` | `pnpm --filter @workspace/bigram-ai run dev` | Main React/Vite app |
-| `artifacts/mockup-sandbox: Component Preview Server` | `pnpm --filter @workspace/mockup-sandbox run dev` | Canvas component preview |
-
-Restart an existing workflow from the Replit workflow controls after changing
-code, dependencies, or build configuration. Do not create a duplicate
-workflow for an existing artifact.
-
-### Artifact paths and ports
-
-| Artifact | Preview path | Development port | Production behavior |
-| --- | --- | --- | --- |
-| API Server | `/api` | `8080` | esbuild bundle run with Node |
-| Bigram AI | `/` | `26237` | Static Vite output |
-| Canvas | `/__mockup` | `8081` | Development-only component preview |
-
-The artifact metadata lives in:
-
-- `artifacts/api-server/.replit-artifact/artifact.toml`
-- `artifacts/bigram-ai/.replit-artifact/artifact.toml`
-- `artifacts/mockup-sandbox/.replit-artifact/artifact.toml`
-
-Do not edit those `artifact.toml` files directly. Use the artifact validation
-workflow if artifact metadata or service routing must change.
-
-## Run manually outside the workflow pane
-
-Run each service in a separate terminal. The workflow normally supplies these
-environment variables automatically.
+Run the API and web app in separate terminals. The production Render service
+uses one Express process that serves both the API and the built frontend.
 
 ### API server
 
@@ -220,12 +133,11 @@ PORT=26237 BASE_PATH=/ pnpm --filter @workspace/bigram-ai run dev
 PORT=8081 BASE_PATH=/__mockup pnpm --filter @workspace/mockup-sandbox run dev
 ```
 
-For ad-hoc requests from the Replit workspace, use the shared proxy at
-`localhost:80`, not the service port directly:
+For local API checks, use the API service port directly:
 
 ```bash
-curl http://localhost:80/api/healthz
-curl http://localhost:80/api/brain/overview
+curl http://localhost:8080/api/healthz
+curl http://localhost:8080/api/brain/overview
 ```
 
 ## Database setup and schema
@@ -239,9 +151,9 @@ Push the current Drizzle schema to the development database:
 pnpm --filter @workspace/db run push
 ```
 
-This is a development operation. Do not add startup-time DDL or custom
-migration scripts. Production schema changes are applied through Replit's
-publish flow.
+This is a schema setup operation. Do not add startup-time DDL or custom
+migration scripts. Run it with the `DATABASE_URL` for the Render PostgreSQL
+database before the first production launch.
 
 The schema is defined in `lib/db/src/schema/brain.ts` and exported through
 `lib/db/src/schema/index.ts`.
@@ -375,8 +287,7 @@ import paths depend on it.
 
 The frontend uses the generated hooks from `@workspace/api-client-react`.
 Requests use the generated custom fetcher and the `/api` base path. Do not
-hard-code `localhost`, the Replit development domain, or a service port into
-browser code.
+hard-code a host or service port into browser code.
 
 ## HTTP API
 
@@ -392,10 +303,9 @@ Returns a small health object with `status`.
 
 ### Local accounts
 
-The application account flow is intentionally separate from Replit Auth,
-Clerk, GitHub OAuth, and other hosted identity providers. The server creates
-and verifies local username/password accounts using the fixed private GitHub
-repository:
+The application account flow is intentionally separate from hosted identity
+providers. The server creates and verifies local username/password accounts
+using the fixed private GitHub repository:
 
 ```http
 GET /api/auth/session
@@ -605,19 +515,19 @@ Each account's chat history is written to:
 snapshots/<normalized-username>/chat-history.json
 ```
 
-The API uses the Replit GitHub connector SDK:
+The API uses the GitHub Contents API with the `GITHUB_TOKEN` environment
+variable:
 
 ```ts
-import { ReplitConnectors } from "@replit/connectors-sdk";
-
-const connectors = new ReplitConnectors();
-await connectors.proxy("github", "/your/api/path", {
-  method: "GET",
+const response = await fetch("https://api.github.com/repos/...", {
+  headers: {
+    Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+    Accept: "application/vnd.github+json",
+  },
 });
 ```
 
-Do not replace this with a hard-coded GitHub token. The connector handles
-authentication and token refresh.
+Never hard-code the token. Configure it as a secret in Render.
 
 ### Loading the latest remote state
 
@@ -678,7 +588,7 @@ For a backend-backed feature:
 7. Use generated React Query hooks in the frontend.
 8. Handle loading, error, empty, and success states.
 9. Run `pnpm run typecheck`.
-10. Restart the affected managed workflow.
+10. Restart the affected service or redeploy.
 11. Verify the proxied API and browser preview.
 
 For server code, use the singleton logger from
@@ -693,28 +603,37 @@ For frontend code:
 - Keep desktop and mobile navigation in sync.
 - Preserve the current visual language in `src/index.css` and `App.tsx`.
 
-## Deployment
+## Render deployment
 
-`.replit` configures:
+The repository includes `render.yaml` for a single Render web service. The
+service builds the frontend and API separately, then runs the Express API as
+the production process. Express serves the built frontend and the `/api`
+routes from the same origin, so browser cookies and relative API requests work
+without a proxy or platform-specific routing.
 
-- Application routing
-- Autoscale deployment target
-- Node.js, web, Bash, and PostgreSQL modules
-- Post-build pnpm store pruning
-- The managed `Project` run button
+In Render, set these environment variables:
 
-Production artifact behavior is defined by the artifact manifests:
+- `DATABASE_URL` — Render PostgreSQL connection string for the shared model
+  cache
+- `GITHUB_TOKEN` — fine-grained GitHub token with Contents read/write access
+  to `TheFallenStarGG/Bigram-Learning-AI-Snapshots`
+- `SESSION_SECRET` — long random secret used to sign account cookies
+- `NODE_ENV=production`
+- `SERVE_WEB=true`
 
-- The frontend is built as static files from `artifacts/bigram-ai/dist/public`.
-- The API is built into `artifacts/api-server/dist/index.mjs` and runs with
-  Node.
-- The API health path is `/api/healthz`.
+Before the first launch, apply the Drizzle schema against the Render database:
 
-Before publishing, verify that the deployed environment has access to the
-required PostgreSQL database and the fixed private GitHub repository. Replit
-uses the attached GitHub connector; Render or another non-Replit host should
-provide `GITHUB_TOKEN` and `SESSION_SECRET` through its secret manager. Never
-put either credential or the database connection string in source control.
+```bash
+pnpm --filter @workspace/db run push
+```
+
+The production health check is:
+
+```text
+GET /api/healthz
+```
+
+Never put credentials or the database connection string in source control.
 
 ## Troubleshooting
 
@@ -726,7 +645,7 @@ Dependencies are not installed. Run:
 pnpm install
 ```
 
-Then restart the affected workflow.
+Then restart the local process or redeploy on Render.
 
 ### API returns a database relation/table error
 
@@ -736,14 +655,14 @@ Push the development schema:
 pnpm --filter @workspace/db run push
 ```
 
-Then restart the API workflow.
+Then restart the local process or redeploy on Render.
 
 ### API starts but frontend requests fail
 
 Check that:
 
-1. The API workflow is running.
-2. The API is routed through `/api`.
+1. The Render web service is running.
+2. The API is available through `/api`.
 3. The frontend is using generated relative API paths.
 4. You are not hard-coding a localhost URL in browser code.
 
@@ -751,24 +670,23 @@ Check that:
 
 Check, without exposing credentials:
 
-1. The GitHub integration is authorized and attached to this Repl.
+1. `GITHUB_TOKEN` is configured in Render and has repository Contents
+   read/write permission.
 2. The private repository still exists.
 3. The configured branch is `main`.
-4. The connector has repository write permission.
-5. The API log contains the GitHub response reason.
+4. The API log contains the GitHub response reason.
 
 The local JSON snapshot and failed status are retained so a remote failure is
 visible instead of being reported as a successful backup.
 
-### Blank or incorrect preview
+### Blank or incorrect page
 
-Restart the managed workflow and check:
+Restart the local process or redeploy on Render and check:
 
 - `PORT` is present
-- `BASE_PATH` is present for Vite artifacts
+- the frontend was built with `BASE_PATH=/`
 - the Vite server is bound to `0.0.0.0`
-- `allowedHosts` remains enabled for the Replit proxy
-- the artifact preview path is still `/`
+- `SERVE_WEB=true` is set for the production API process
 
 ## Important rules
 
@@ -778,12 +696,10 @@ Restart the managed workflow and check:
   architecture decision. Account records and account chats belong in GitHub,
   not PostgreSQL.
 - Do not expose or commit secrets.
-- Do not put GitHub tokens in source code or chat. Use the Replit GitHub
-  connector in Replit and `GITHUB_TOKEN` through the host's secret manager
-  outside Replit.
+- Do not put GitHub tokens in source code or chat. Use `GITHUB_TOKEN` through
+  Render's secret manager.
 - Do not link the private snapshot repository from the public UI.
 - Do not hand-edit generated API clients or Zod files.
-- Do not edit artifact metadata directly.
 - Do not silently fall back to stale model memory after a malformed remote
   snapshot or a GitHub read error.
 - Keep `lib/api-spec/openapi.yaml` and generated outputs synchronized.

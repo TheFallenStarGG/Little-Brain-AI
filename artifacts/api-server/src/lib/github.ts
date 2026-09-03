@@ -1,7 +1,3 @@
-import { ReplitConnectors } from "@replit/connectors-sdk";
-
-const connectors = new ReplitConnectors();
-
 export const SNAPSHOT_REPOSITORY_URL =
   "https://github.com/TheFallenStarGG/Bigram-Learning-AI-Snapshots";
 
@@ -34,18 +30,20 @@ async function githubRequest<T>(
     Accept: "application/vnd.github+json",
     ...(init?.headers ?? {}),
   };
-  const response = process.env.GITHUB_TOKEN
-    ? await fetch(`https://api.github.com${requestPath}`, {
-        ...init,
-        headers: {
-          ...headers,
-          Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-        },
-      })
-    : await connectors.proxy("github", requestPath, {
-        ...init,
-        headers,
-      });
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (!githubToken) {
+    throw new Error(
+      "GITHUB_TOKEN is required to access the private GitHub snapshot repository.",
+    );
+  }
+
+  const response = await fetch(`https://api.github.com${requestPath}`, {
+    ...init,
+    headers: {
+      ...headers,
+      Authorization: `Bearer ${githubToken}`,
+    },
+  });
 
   const responseText = await response.text();
   let payload: unknown = null;

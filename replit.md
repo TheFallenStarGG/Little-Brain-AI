@@ -1,6 +1,6 @@
-# Bigram AI
+# Little Brain AI
 
-Bigram AI is a transparent, from-scratch conversational model that learns word-to-word transitions as users teach it.
+Little Brain AI is a transparent, from-scratch conversational model that learns word-to-word transitions as users teach it.
 
 ## Run & Operate
 
@@ -11,8 +11,8 @@ Bigram AI is a transparent, from-scratch conversational model that learns word-t
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string for the shared model cache
-- Production account persistence also requires `SESSION_SECRET`; non-Replit hosts
-  use `GITHUB_TOKEN` for the fixed private snapshots repository
+- Production account persistence also requires `SESSION_SECRET` and
+  `GITHUB_TOKEN` for the fixed private snapshots repository
 
 ## Stack
 
@@ -41,7 +41,8 @@ Bigram AI is a transparent, from-scratch conversational model that learns word-t
 - PostgreSQL stores the live shared model cache so learning survives server restarts; model snapshots also write complete JSON files locally and to the private `Bigram-Learning-AI-Snapshots` repository.
 - Account records and user-facing chats are stored only in the private GitHub repository. Account files contain salted password hashes, and each user chat lives under `snapshots/<account-name>/`.
 - A five-minute server-side timer creates a snapshot while the API process is active. Before every chat, the API loads the latest private GitHub model snapshot so the shared vocabulary and transitions stay current, then writes the signed-in user's chat separately.
-- Local username/password accounts are independent of Clerk, Replit Auth, Replit OAuth, and GitHub OAuth login.
+- Local username/password accounts are independent of hosted identity providers
+  and use the fixed private GitHub repository directly.
 - Administrator access is stored on account records and enforced on the backend. Admins can review only direct AI chats and group rooms that include Little Brain; user-only rooms are never returned.
 - Banning an account invalidates its server-checked sessions, blocks future login, deletes its direct AI history, and removes its messages from shared rooms. The repository-owner account is the initial administrator.
 - The frontend uses generated API hooks so the chat, metrics, snapshot history, and backup status all consume the same contract.
