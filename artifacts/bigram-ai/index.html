@@ -13,13 +13,13 @@
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: 1px;
-        font-size: 0.9rem; /* smaller */
+        font-size: 0.9rem;
         text-align: center;
         text-shadow:
           0px 1px 0px #9e1a1a,
           0px 2px 0px #8a1515,
           0px 3px 0px #751111;
-        padding: 0.25rem 1rem; /* smaller */
+        padding: 0.25rem 1rem;
         line-height: 1.2;
         box-sizing: border-box;
         transition: transform 0.35s ease, opacity 0.35s ease;
@@ -78,12 +78,9 @@
   </head>
 
   <body>
-    <!-- Banner container -->
     <div id="kao-banner-container"></div>
-
     <div id="root"></div>
 
-    <!-- KAO Inline Banner Script -->
     <script>
       (function () {
         const storageKey = "kao-banner-hidden2";
@@ -93,18 +90,18 @@
           document.body.style.paddingTop = show ? "40px" : "0px";
         }
 
-        // If dismissed recently, do not show
-        try {
-          const dismissed = localStorage.getItem(storageKey);
-          if (dismissed) {
-            const elapsed = Date.now() - Number(dismissed);
-            if (elapsed < dismissDays * 24 * 60 * 60 * 1000) {
-              applyPadding(false);
-              return;
-            }
-            localStorage.removeItem(storageKey);
+        // FIX: Only treat dismissal as valid if it's a REAL timestamp
+        let dismissed = localStorage.getItem(storageKey);
+        let dismissedTime = Number(dismissed);
+
+        if (!isNaN(dismissedTime) && dismissedTime > 0) {
+          const elapsed = Date.now() - dismissedTime;
+          if (elapsed < dismissDays * 24 * 60 * 60 * 1000) {
+            applyPadding(false);
+            return;
           }
-        } catch (e) {}
+          localStorage.removeItem(storageKey);
+        }
 
         // Create banner
         const banner = document.createElement("div");
@@ -129,25 +126,21 @@
         closeBtn.addEventListener("click", function (e) {
           e.stopPropagation();
 
-          // Slide animation
           banner.classList.add("slide-up");
 
-          // Remove padding after animation
           setTimeout(() => {
             banner.style.display = "none";
             applyPadding(false);
           }, 350);
 
-          try { localStorage.setItem(storageKey, String(Date.now())); } catch (e) {}
+          localStorage.setItem(storageKey, String(Date.now()));
         });
         banner.appendChild(closeBtn);
 
         document.getElementById("kao-banner-container").appendChild(banner);
 
-        // Banner is visible → apply padding
         applyPadding(true);
 
-        // Countdown target
         const countDownDate = new Date("Jan 1, 2027 00:00:00").getTime();
 
         function updateBanner() {
