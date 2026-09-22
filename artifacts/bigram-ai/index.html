@@ -1,8 +1,72 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <script src="https://keepandroidopen.org/banner.js"></script>
-    
+    <!-- KAO Inline Banner Styles -->
+    <style>
+      .kao-banner {
+        position: relative;
+        font-variant-numeric: tabular-nums;
+        background: linear-gradient(180deg,#d32f2f 0%,#b71c1c 100%);
+        border-bottom: 4px solid #801313;
+        color: #fff;
+        font-family: 'Arial Black', sans-serif;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-size: 1.5rem;
+        text-align: center;
+        text-shadow:
+          0px 1px 0px #9e1a1a,
+          0px 2px 0px #8a1515,
+          0px 3px 0px #751111,
+          0px 4px 0px #5e0d0d,
+          0px 6px 10px rgba(0,0,0,0.5);
+        padding: 0.5rem 2.5rem;
+        line-height: 1.6;
+        box-sizing: border-box;
+      }
+
+      .kao-banner a {
+        color: #fff;
+        text-decoration: none;
+      }
+      .kao-banner a:hover {
+        text-decoration: underline;
+      }
+
+      .kao-banner-close {
+        position: absolute;
+        right: 0.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #fff;
+        font-size: 0.8em;
+        cursor: pointer;
+        opacity: 0.7;
+        padding: 0.25rem 0.5rem;
+        line-height: 1;
+        text-shadow: none;
+      }
+      .kao-banner-close:hover {
+        opacity: 1;
+      }
+
+      .kao-banner:not(.no-animation) {
+        animation: kao-pulse 2s infinite;
+      }
+      @keyframes kao-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(211,47,47,0.7); }
+        70% { box-shadow: 0 0 0 15px rgba(211,47,47,0); }
+        100% { box-shadow: 0 0 0 0 rgba(211,47,47,0); }
+      }
+
+      body {
+        padding-top: 80px;
+      }
+    </style>
+
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <title>Little Brain AI</title>
@@ -19,8 +83,84 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   </head>
+
   <body>
+    <!-- Banner container -->
+    <div id="kao-banner-container"></div>
+
     <div id="root"></div>
+
+    <!-- KAO Inline Banner Script -->
+    <script>
+      (function () {
+        const storageKey = "kao-banner-hidden";
+        const dismissDays = 30;
+
+        // If dismissed recently, do not show
+        try {
+          const dismissed = localStorage.getItem(storageKey);
+          if (dismissed) {
+            const elapsed = Date.now() - Number(dismissed);
+            if (elapsed < dismissDays * 24 * 60 * 60 * 1000) return;
+            localStorage.removeItem(storageKey);
+          }
+        } catch (e) {}
+
+        // Create banner
+        const banner = document.createElement("div");
+        banner.className = "kao-banner";
+
+        const link = document.createElement("a");
+        link.href = "https://keepandroidopen.org";
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "Android will become a locked-down platform in";
+        banner.appendChild(link);
+
+        banner.appendChild(document.createElement("br"));
+
+        const countdownSpan = document.createElement("span");
+        countdownSpan.textContent = "";
+        banner.appendChild(countdownSpan);
+
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "kao-banner-close";
+        closeBtn.textContent = "×";
+        closeBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          banner.style.display = "none";
+          try { localStorage.setItem(storageKey, String(Date.now())); } catch (e) {}
+        });
+        banner.appendChild(closeBtn);
+
+        document.getElementById("kao-banner-container").appendChild(banner);
+
+        // Countdown target
+        const countDownDate = new Date("Jan 1, 2027 00:00:00").getTime();
+
+        function updateBanner() {
+          const now = Date.now();
+          const distance = countDownDate - now;
+
+          if (distance < 0) {
+            countdownSpan.textContent = "0s";
+            return;
+          }
+
+          const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+          const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+          countdownSpan.textContent =
+            `${days}D ${hours}H ${minutes}M ${seconds}S`;
+        }
+
+        setInterval(updateBanner, 1000);
+        updateBanner();
+      })();
+    </script>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
