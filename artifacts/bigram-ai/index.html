@@ -7,31 +7,32 @@
         position: relative;
         font-variant-numeric: tabular-nums;
         background: linear-gradient(180deg,#d32f2f 0%,#b71c1c 100%);
-        border-bottom: 4px solid #801313;
+        border-bottom: 3px solid #801313;
         color: #fff;
         font-family: 'Arial Black', sans-serif;
         font-weight: 900;
         text-transform: uppercase;
-        letter-spacing: 2px;
-        font-size: 1.5rem;
+        letter-spacing: 1px;
+        font-size: 0.9rem; /* smaller */
         text-align: center;
         text-shadow:
           0px 1px 0px #9e1a1a,
           0px 2px 0px #8a1515,
-          0px 3px 0px #751111,
-          0px 4px 0px #5e0d0d,
-          0px 6px 10px rgba(0,0,0,0.5);
-        padding: 0.5rem 2.5rem;
-        line-height: 1.6;
+          0px 3px 0px #751111;
+        padding: 0.25rem 1rem; /* smaller */
+        line-height: 1.2;
         box-sizing: border-box;
+        transition: transform 0.35s ease, opacity 0.35s ease;
+      }
+
+      .kao-banner.slide-up {
+        transform: translateY(-100%);
+        opacity: 0;
       }
 
       .kao-banner a {
         color: #fff;
         text-decoration: none;
-      }
-      .kao-banner a:hover {
-        text-decoration: underline;
       }
 
       .kao-banner-close {
@@ -46,24 +47,16 @@
         cursor: pointer;
         opacity: 0.7;
         padding: 0.25rem 0.5rem;
-        line-height: 1;
-        text-shadow: none;
-      }
-      .kao-banner-close:hover {
-        opacity: 1;
       }
 
       .kao-banner:not(.no-animation) {
         animation: kao-pulse 2s infinite;
       }
+
       @keyframes kao-pulse {
         0% { box-shadow: 0 0 0 0 rgba(211,47,47,0.7); }
-        70% { box-shadow: 0 0 0 15px rgba(211,47,47,0); }
+        70% { box-shadow: 0 0 0 10px rgba(211,47,47,0); }
         100% { box-shadow: 0 0 0 0 rgba(211,47,47,0); }
-      }
-
-      body {
-        padding-top: 80px;
       }
     </style>
 
@@ -96,12 +89,19 @@
         const storageKey = "kao-banner-hidden";
         const dismissDays = 30;
 
+        function applyPadding(show) {
+          document.body.style.paddingTop = show ? "40px" : "0px";
+        }
+
         // If dismissed recently, do not show
         try {
           const dismissed = localStorage.getItem(storageKey);
           if (dismissed) {
             const elapsed = Date.now() - Number(dismissed);
-            if (elapsed < dismissDays * 24 * 60 * 60 * 1000) return;
+            if (elapsed < dismissDays * 24 * 60 * 60 * 1000) {
+              applyPadding(false);
+              return;
+            }
             localStorage.removeItem(storageKey);
           }
         } catch (e) {}
@@ -128,12 +128,24 @@
         closeBtn.textContent = "×";
         closeBtn.addEventListener("click", function (e) {
           e.stopPropagation();
-          banner.style.display = "none";
+
+          // Slide animation
+          banner.classList.add("slide-up");
+
+          // Remove padding after animation
+          setTimeout(() => {
+            banner.style.display = "none";
+            applyPadding(false);
+          }, 350);
+
           try { localStorage.setItem(storageKey, String(Date.now())); } catch (e) {}
         });
         banner.appendChild(closeBtn);
 
         document.getElementById("kao-banner-container").appendChild(banner);
+
+        // Banner is visible → apply padding
+        applyPadding(true);
 
         // Countdown target
         const countDownDate = new Date("Jan 1, 2027 00:00:00").getTime();
